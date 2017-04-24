@@ -67,8 +67,10 @@
 #define Z_AXIS    2
 
 #define X_MAX_POSITION 12800
+#define X_STEPS         200
 #define Y_MAX_POSITION 12800
-#define Z_MAX_POSITION 12800
+#define Z_MAX_POSITION 128000
+#define Z_STEPS         1500
 
 unsigned long x_current_position = 0;
 unsigned long y_current_position = 0;
@@ -103,8 +105,8 @@ void setup() {
   pinMode(3,INPUT);
   
   lcd.begin(20,4);
-  lcd.print("Hello World");
   lcd.setCursor(0,0);
+  lcd.print("Hello World");
 
   digitalWrite(X_ENABLE_PIN,LOW);
   digitalWrite(Y_ENABLE_PIN,LOW);
@@ -141,27 +143,34 @@ void move_stepper(int axis,int dir) {
     case Z_AXIS:
       pin = Z_STEP_PIN;
       dir_pin = Z_DIR_PIN;
-      next_position = z_current_position + (dir*100);
+      next_position = z_current_position + (dir*Z_STEPS);
       if( next_position >= 0 && next_position <= Z_MAX_POSITION ) {
         continue_move = true;
       } else { continue_move = false; }
-      z_current_position = next_position;
+      if(next_position < 0) {
+        z_current_position = 0;
+      } else if (next_position > Z_MAX_POSITION) {
+        z_current_position = Z_MAX_POSITION;
+      }
+      else {
+        z_current_position = next_position;
+      }
       break;
   }
 
   line3 = "Move: " + String(pin) + " DIR: " + String(dir);  
 
   if(continue_move == true) {
-    for(int x = 0; x < 100; x++) {
+    for(int x = 0; x < Z_STEPS; x++) {
       if(dir == 1) {
         digitalWrite(dir_pin,HIGH);
       } else {
         digitalWrite(dir_pin,LOW);
       }
       digitalWrite(pin,HIGH);
-      delayMicroseconds(100);
+      delayMicroseconds(40);
       digitalWrite(pin,LOW);
-      delayMicroseconds(100);
+      delayMicroseconds(40);
     }
   }
     
@@ -171,12 +180,12 @@ void updateDisplay() {
     lastRefreshTime += REFRESH_INTERVAL;
     lcd.setCursor(0,0);
     lcd.print(line0);
-    lcd.setCursor(0,1);
-    lcd.print(line1);
+    //lcd.setCursor(0,1);
+    //lcd.print(line1);
     lcd.setCursor(0,2);
-    lcd.print(line2);
-    lcd.setCursor(0,3);
-    lcd.print(line3);
+    lcd.print("GO");
+    //lcd.setCursor(0,3);
+    //lcd.print(line3);
   }
 }
 int getDirection(int current, int center) {
@@ -197,8 +206,6 @@ void loop() {
   // put your main code here, to run repeatedly:
   x_joy = analogRead(X_JOY_PIN);
   y_joy = analogRead(Y_JOY_PIN);
-  lcd.clear();
-  lcd.setCursor(0,0);
   line0 = "X:" + String(x_current_position) + " Y:" + String(y_current_position) + " Z:" + String(z_current_position);
   line1 = "JX:" + String(x_joy) + " JY:" + String(y_joy);
   x_dir = getDirection(x_joy,X_JOY_CENTER);
@@ -206,5 +213,5 @@ void loop() {
   if(x_dir == 1) { move_stepper(Z_AXIS,HIGH); } else if (x_dir == -1) { move_stepper(Z_AXIS,LOW); }
   if(y_dir == 1) { move_stepper(Y_AXIS,HIGH); } else if (y_dir == -1) { move_stepper(Y_AXIS,LOW); }
   
-  delay(50);
+  updateDisplay();
 }
