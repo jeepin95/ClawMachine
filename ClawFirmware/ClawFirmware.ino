@@ -5,10 +5,10 @@ String VERSION = "0.1";
 //
 // Limit Switches
 //
-#define X_MIN_PIN           3
-#define X_MAX_PIN         2
-#define Y_MIN_PIN          14
-#define Y_MAX_PIN          15
+#define X_MIN_PIN          14
+#define X_MAX_PIN          15
+#define Y_MIN_PIN           3
+#define Y_MAX_PIN           2
 
 //
 // Joystick
@@ -65,8 +65,9 @@ String VERSION = "0.1";
 #define X_MAX_POSITION 128000
 #define Z_MAX_POSITION 5000
 #define Y_MAX_POSITION 128000
-#define STEPS         1500
-
+#define STEPS         150
+#define STEPPER_DELAY 50
+#define BTN_SETUP     19
 
 unsigned long x_max_position = X_MAX_POSITION;
 unsigned long y_max_position = Y_MAX_POSITION;
@@ -102,6 +103,12 @@ void setup() {
   pinMode(Z_ENABLE_PIN,OUTPUT);
   pinMode(X_JOY_PIN,INPUT);
   pinMode(Y_JOY_PIN,INPUT);
+  pinMode(BTN_SETUP,INPUT);
+
+  pinMode(X_MIN_PIN,INPUT);
+  pinMode(X_MAX_PIN,INPUT);
+  pinMode(Y_MIN_PIN,INPUT);
+  pinMode(Y_MAX_PIN,INPUT);
   
   pinMode(3,INPUT);
   
@@ -111,7 +118,7 @@ void setup() {
   lcd.print("Ellie's Claw Machine");
   lcd.setCursor(0,1);
   lcd.print("Version: " + VERSION);
-  delay(5000);
+  delay(2000);
   digitalWrite(X_ENABLE_PIN,LOW);
   digitalWrite(Y_ENABLE_PIN,LOW);
   digitalWrite(Z_ENABLE_PIN,LOW);
@@ -190,9 +197,9 @@ void move_stepper(int axis,int dir) {
     }
     for(int x = 0; x < STEPS; x++) {
       digitalWrite(pin,HIGH);
-      delayMicroseconds(50);
+      delayMicroseconds(STEPPER_DELAY);
       digitalWrite(pin,LOW);
-      delayMicroseconds(50);
+      delayMicroseconds(STEPPER_DELAY);
     }
   }
 }
@@ -200,16 +207,16 @@ void move_stepper(int axis,int dir) {
 void updateDisplay() {
   if(millis() - lastRefreshTime >= REFRESH_INTERVAL) {
     lcd.clear();
-    line0 = "X:" + String(x_current_position) + " Y:" + String(y_current_position) + " Z:" + String(z_current_position);
+    line1 = "Button: " + String(digitalRead(BTN_SETUP));
     lastRefreshTime += REFRESH_INTERVAL;
     lcd.setCursor(0,0);
     lcd.print(line0);
-    //lcd.setCursor(0,1);
-    //lcd.print(line1);
+    lcd.setCursor(0,1);
+    lcd.print(line1);
     lcd.setCursor(0,2);
-    lcd.print("GO");
-    //lcd.setCursor(0,3);
-    //lcd.print(line3);
+    lcd.print(line2);
+    lcd.setCursor(0,3);
+    lcd.print(line3);
   }
 }
 int getDirection(int current, int center) {
@@ -226,6 +233,41 @@ int x_dir;
 int y_dir;
 int z_dir;
 
+bool running_setup = false;
+void find_home() {
+  
+  // First disable all steppers
+  digitalWrite(X_ENABLE_PIN,HIGH);
+  digitalWrite(Y_ENABLE_PIN,HIGH);
+  digitalWrite(Z_ENABLE_PIN,HIGH);
+  digitalWrite(Y_ENABLE_PIN,LOW);
+
+  // find the y min
+  digitalWrite(Y_DIR_PIN,HIGH);
+  while(digitalRead(Y_MIN_PIN) == HIGH) {
+    line2 = "Finding Y Home...";
+    updateDisplay();
+    digitalWrite(Y_STEP_PIN,HIGH);
+    delayMicroseconds(STEPPER_DELAY*10);
+    digitalWrite(Y_STEP_PIN,LOW);
+    delayMicroseconds(STEPPER_DELAY*10);
+  }
+  y_current_position = 0;
+  // find the y maximum
+  y_max_position = 0;
+  digitalWrite(Y_DIR_PIN,LOW);
+  while(digitalRead(Y_MAX_PIN) == HIGH) {
+    line2 = "Finding Y Home...";
+    updateDisplay();
+    digitalWrite(Y_STEP_PIN,HIGH);
+    delayMicroseconds(STEPPER_DELAY*10);
+    digitalWrite(Y_STEP_PIN,LOW);
+    delayMicroseconds(STEPPER_DELAY*10);
+    y_max_position++;
+  }
+  
+  running_setup = false;
+}
 void loop() {
   // put your main code here, to run repeatedly:
   x_joy = analogRead(X_JOY_PIN);
@@ -234,8 +276,18 @@ void loop() {
   y_dir = getDirection(y_joy,Y_JOY_CENTER);
   if(x_dir == 1) { move_stepper(Z_AXIS,HIGH); } else if (x_dir == -1) { move_stepper(Z_AXIS,LOW); }
   if(y_dir == 1) { move_stepper(Y_AXIS,HIGH); } else if (y_dir == -1) { move_stepper(Y_AXIS,LOW); }
+
+  // In order to run the steppers more smoothly, execute the following
+  // only when the joystick is centered
   if(x_dir == 0 && y_dir == 0) {
+    line0 = "X:" + String(x_current_position) + " Y:" + String(y_current_position) + " Z:" + String(z_current_position);
     updateDisplay();
+    if(digitalRead(BTN_SETUP) == LOW) {
+      if(running_setup == false) {
+        running_setup = true;
+        find_home();
+      }
+    }
   }
   
 }
