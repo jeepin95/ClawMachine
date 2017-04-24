@@ -1,18 +1,14 @@
 #include <Wire.h>
 
 #include <LiquidCrystal.h>
-
+String VERSION = "0.1";
 //
 // Limit Switches
 //
 #define X_MIN_PIN           3
-#ifndef X_MAX_PIN
-  #define X_MAX_PIN         2
-#endif
+#define X_MAX_PIN         2
 #define Y_MIN_PIN          14
 #define Y_MAX_PIN          15
-#define Z_MIN_PIN          18
-#define Z_MAX_PIN          19
 
 //
 // Joystick
@@ -31,15 +27,15 @@
 #define X_ENABLE_PIN       38
 #define X_CS_PIN           53
 
-#define Y_STEP_PIN         60
-#define Y_DIR_PIN          61
-#define Y_ENABLE_PIN       56
-#define Y_CS_PIN           49
+#define Z_STEP_PIN         60
+#define Z_DIR_PIN          61
+#define Z_ENABLE_PIN       56
+#define Z_CS_PIN           49
 
-#define Z_STEP_PIN         46
-#define Z_DIR_PIN          48
-#define Z_ENABLE_PIN       62
-#define Z_CS_PIN           40
+#define Y_STEP_PIN         46
+#define Y_DIR_PIN          48
+#define Y_ENABLE_PIN       62
+#define Y_CS_PIN           40
 
 //
 // LCD
@@ -66,15 +62,20 @@
 #define Y_AXIS    1
 #define Z_AXIS    2
 
-#define X_MAX_POSITION 12800
-#define X_STEPS         200
-#define Y_MAX_POSITION 12800
-#define Z_MAX_POSITION 128000
-#define Z_STEPS         1500
+#define X_MAX_POSITION 128000
+#define Z_MAX_POSITION 5000
+#define Y_MAX_POSITION 128000
+#define STEPS         1500
+
+
+unsigned long x_max_position = X_MAX_POSITION;
+unsigned long y_max_position = Y_MAX_POSITION;
+unsigned long z_max_position = Z_MAX_POSITION;
 
 unsigned long x_current_position = 0;
 unsigned long y_current_position = 0;
 unsigned long z_current_position = 0;
+
 unsigned int x_joy;
 unsigned int y_joy;
 
@@ -83,7 +84,7 @@ String line1 = "";
 String line2 = "";
 String line3 = "";
 
-static const unsigned long REFRESH_INTERVAL = 1000;
+static const unsigned long REFRESH_INTERVAL = 500;
 static unsigned long lastRefreshTime = 0;
 
 LiquidCrystal lcd(LCD_PINS_RS,LCD_PINS_ENABLE,LCD_PINS_D4,LCD_PINS_D5,LCD_PINS_D6,LCD_PINS_D7);
@@ -105,9 +106,12 @@ void setup() {
   pinMode(3,INPUT);
   
   lcd.begin(20,4);
+  lcd.clear();
   lcd.setCursor(0,0);
-  lcd.print("Hello World");
-
+  lcd.print("Ellie's Claw Machine");
+  lcd.setCursor(0,1);
+  lcd.print("Version: " + VERSION);
+  delay(5000);
   digitalWrite(X_ENABLE_PIN,LOW);
   digitalWrite(Y_ENABLE_PIN,LOW);
   digitalWrite(Z_ENABLE_PIN,LOW);
@@ -123,60 +127,80 @@ void move_stepper(int axis,int dir) {
   int dir_pin;
   long next_position;
   
-  lcd.setCursor(0,3);
   bool continue_move = false;
   switch(axis) {
     case X_AXIS:
       pin = X_STEP_PIN;
       dir_pin = X_DIR_PIN;
-      if( ((x_current_position + (1*dir)) > X_MAX_POSITION) && ((x_current_position + (1*dir) >= 0)) ){
+      next_position = x_current_position + (dir*STEPS);
+      if(next_position >= 0 && next_position <= x_max_position) {
         continue_move = true;
-      } else { continue_move = false; }
+      } else {
+        continue_move = false;
+      }
+
+      if (next_position < 0) {
+        x_current_position = 0;
+      } else if (next_position > x_max_position) {
+        x_current_position = x_max_position;
+      } else {
+        x_current_position = next_position;
+      }
       break;
     case Y_AXIS:
       pin = Y_STEP_PIN;
       dir_pin = Y_DIR_PIN;
-      if( ((y_current_position + (1*dir)) > Y_MAX_POSITION) && ((y_current_position + (1*dir) >= 0)) ) {
+      next_position = y_current_position + (dir*STEPS);
+      if(next_position >= 0 && next_position <= y_max_position) {
         continue_move = true;
-      } else { continue_move = false; }
+      } else {
+        continue_move = false;
+      }
+
+      if (next_position < 0) {
+        y_current_position = 0;
+      } else if (next_position > y_max_position) {
+        y_current_position = y_max_position;
+      } else {
+        y_current_position = next_position;
+      }
       break;
     case Z_AXIS:
       pin = Z_STEP_PIN;
       dir_pin = Z_DIR_PIN;
-      next_position = z_current_position + (dir*Z_STEPS);
-      if( next_position >= 0 && next_position <= Z_MAX_POSITION ) {
+      next_position = z_current_position + (dir*STEPS);
+      if( next_position >= 0 && next_position <= z_max_position ) {
         continue_move = true;
       } else { continue_move = false; }
       if(next_position < 0) {
         z_current_position = 0;
-      } else if (next_position > Z_MAX_POSITION) {
-        z_current_position = Z_MAX_POSITION;
+      } else if (next_position > z_max_position) {
+        z_current_position = z_max_position;
       }
       else {
         z_current_position = next_position;
       }
       break;
   }
-
-  line3 = "Move: " + String(pin) + " DIR: " + String(dir);  
-
   if(continue_move == true) {
-    for(int x = 0; x < Z_STEPS; x++) {
-      if(dir == 1) {
-        digitalWrite(dir_pin,HIGH);
-      } else {
-        digitalWrite(dir_pin,LOW);
-      }
+    if(dir == 1) {
+      digitalWrite(dir_pin,HIGH);
+    } else {
+      digitalWrite(dir_pin,LOW);
+    }
+    for(int x = 0; x < STEPS; x++) {
       digitalWrite(pin,HIGH);
-      delayMicroseconds(40);
+      delayMicroseconds(50);
       digitalWrite(pin,LOW);
-      delayMicroseconds(40);
+      delayMicroseconds(50);
     }
   }
-    
 }
+
 void updateDisplay() {
   if(millis() - lastRefreshTime >= REFRESH_INTERVAL) {
+    lcd.clear();
+    line0 = "X:" + String(x_current_position) + " Y:" + String(y_current_position) + " Z:" + String(z_current_position);
     lastRefreshTime += REFRESH_INTERVAL;
     lcd.setCursor(0,0);
     lcd.print(line0);
@@ -206,12 +230,12 @@ void loop() {
   // put your main code here, to run repeatedly:
   x_joy = analogRead(X_JOY_PIN);
   y_joy = analogRead(Y_JOY_PIN);
-  line0 = "X:" + String(x_current_position) + " Y:" + String(y_current_position) + " Z:" + String(z_current_position);
-  line1 = "JX:" + String(x_joy) + " JY:" + String(y_joy);
   x_dir = getDirection(x_joy,X_JOY_CENTER);
   y_dir = getDirection(y_joy,Y_JOY_CENTER);
   if(x_dir == 1) { move_stepper(Z_AXIS,HIGH); } else if (x_dir == -1) { move_stepper(Z_AXIS,LOW); }
   if(y_dir == 1) { move_stepper(Y_AXIS,HIGH); } else if (y_dir == -1) { move_stepper(Y_AXIS,LOW); }
+  if(x_dir == 0 && y_dir == 0) {
+    updateDisplay();
+  }
   
-  updateDisplay();
 }
