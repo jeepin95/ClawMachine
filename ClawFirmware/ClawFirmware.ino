@@ -65,8 +65,8 @@ String VERSION = "0.1";
 #define X_MAX_POSITION 128000
 #define Z_MAX_POSITION 5000
 #define Y_MAX_POSITION 128000
-#define STEPS         150
-#define STEPPER_DELAY 50
+#define STEPS         16
+#define STEPPER_DELAY 30
 #define BTN_SETUP     19
 
 unsigned long x_max_position = X_MAX_POSITION;
@@ -207,7 +207,6 @@ void move_stepper(int axis,int dir) {
 void updateDisplay() {
   if(millis() - lastRefreshTime >= REFRESH_INTERVAL) {
     lcd.clear();
-    line1 = "Button: " + String(digitalRead(BTN_SETUP));
     lastRefreshTime += REFRESH_INTERVAL;
     lcd.setCursor(0,0);
     lcd.print(line0);
@@ -257,7 +256,7 @@ void find_home() {
   y_max_position = 0;
   digitalWrite(Y_DIR_PIN,LOW);
   while(digitalRead(Y_MAX_PIN) == HIGH) {
-    line2 = "Finding Y Home...";
+    line2 = "Finding Y Max...";
     updateDisplay();
     digitalWrite(Y_STEP_PIN,HIGH);
     delayMicroseconds(STEPPER_DELAY*10);
@@ -265,7 +264,8 @@ void find_home() {
     delayMicroseconds(STEPPER_DELAY*10);
     y_max_position++;
   }
-  
+  y_max_position = y_max_position - (y_max_position % 16);
+  line2 = "**Setup Complete**";
   running_setup = false;
 }
 void loop() {
